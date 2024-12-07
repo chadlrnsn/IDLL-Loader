@@ -15,11 +15,11 @@ using namespace globals;
 HMODULE g_loadedModule = nullptr;
 std::filesystem::path g_currentPath;
 
-// Глобальные переменные для хранения выделенной памяти
+// Global variables for allocated memory
 void *g_allocatedMemory = nullptr;
 SIZE_T g_allocatedSize = 0;
 
-// Добавляем глобальную переменную для контроля потока мониторинга
+// Global variable for monitoring thread control
 std::atomic<bool> g_monitoringActive = true;
 
 bool EnablePrivilege(const char *privilegeName)
@@ -62,7 +62,7 @@ void CheckProcessPrivileges()
                 TOKEN_PRIVILEGES *privileges = reinterpret_cast<TOKEN_PRIVILEGES *>(buffer.data());
                 LOG_INFO("Current process has %lu privileges", privileges->PrivilegeCount);
 
-                // Выведем все привилегии
+                // Print all privileges
                 for (DWORD i = 0; i < privileges->PrivilegeCount; i++)
                 {
                     LUID_AND_ATTRIBUTES &priv = privileges->Privileges[i];
@@ -81,7 +81,7 @@ void CheckProcessPrivileges()
         CloseHandle(hToken);
     }
 
-    // Проверим также текущий процесс
+    // Check current process
     HANDLE hProcess = GetCurrentProcess();
     DWORD processFlags;
     if (GetProcessMitigationPolicy(hProcess, ProcessDynamicCodePolicy, &processFlags, sizeof(processFlags)))
@@ -89,7 +89,7 @@ void CheckProcessPrivileges()
         LOG_INFO("Dynamic Code Policy: 0x%08X", processFlags);
     }
 
-    // Проверим уровень доступа процесса
+    // Check process access level
     BOOL isElevated = FALSE;
     TOKEN_ELEVATION elevation;
     DWORD size = sizeof(elevation);
@@ -105,13 +105,13 @@ void MonitorLoadLibraryFailure(const std::wstring &dllPath)
     DWORD error = GetLastError();
     LOG_ERROR("LoadLibrary failed with error: %lu", error);
 
-    // Проверим загружен ли модуль частично
+    // Check if module is partially loaded
     HMODULE hModule = GetModuleHandleW(dllPath.c_str());
     if (hModule)
     {
         LOG_ERROR("Module partially loaded at address: 0x%p", hModule);
 
-        // Получим информацию о секциях DLL
+        // Get module information
         MODULEINFO modInfo;
         if (GetModuleInformation(GetCurrentProcess(), hModule, &modInfo, sizeof(modInfo)))
         {
@@ -120,7 +120,7 @@ void MonitorLoadLibraryFailure(const std::wstring &dllPath)
         }
     }
 
-    // Проверим текущие модули процесса
+    // Check current modules of the process
     HANDLE snapshot = CreateToolhelp32Snapshot(TH32CS_SNAPMODULE | TH32CS_SNAPMODULE32, GetCurrentProcessId());
     if (snapshot != INVALID_HANDLE_VALUE)
     {
@@ -136,7 +136,7 @@ void MonitorLoadLibraryFailure(const std::wstring &dllPath)
         CloseHandle(snapshot);
     }
 
-    // Остальные проверки оставим как есть...
+    // Rest of the checks remain unchanged...
     HANDLE hFile = CreateFileW(dllPath.c_str(), GENERIC_READ, FILE_SHARE_READ,
                                nullptr, OPEN_EXISTING, FILE_ATTRIBUTE_NORMAL, nullptr);
 
@@ -172,7 +172,7 @@ bool PrepareDllSpace()
         return false;
     }
 
-    // Получаем размер DLL
+    // Get DLL size
     HANDLE hFile = CreateFileW(dllPath.c_str(), GENERIC_READ, FILE_SHARE_READ,
                                nullptr, OPEN_EXISTING, FILE_ATTRIBUTE_NORMAL, nullptr);
 
@@ -182,6 +182,7 @@ bool PrepareDllSpace()
         return false;
     }
 
+    // Read PE header to get actual size
     IMAGE_DOS_HEADER dosHeader;
     IMAGE_NT_HEADERS ntHeaders;
     DWORD bytesRead;
@@ -204,26 +205,26 @@ bool PrepareDllSpace()
     g_allocatedSize = ntHeaders.OptionalHeader.SizeOfImage;
     CloseHandle(hFile);
 
-    // Генерируем случайный адрес в диапазоне
+    // Generate random address in range
     SYSTEM_INFO si;
     GetSystemInfo(&si);
 
-    // Случайное смещение в пределах доступного адресного пространства
+    // Random offset within available address space
     uintptr_t minAddr = (uintptr_t)si.lpMinimumApplicationAddress;
     uintptr_t maxAddr = (uintptr_t)si.lpMaximumApplicationAddress - g_allocatedSize;
 
-    // Генерируем случайный адрес с выравниванием по странице
+    // Generate random address with page alignment
     uintptr_t randomAddr = minAddr + (rand() % (maxAddr - minAddr));
-    randomAddr &= ~(si.dwPageSize - 1); // Выравнивание по размеру страницы
+    randomAddr &= ~(si.dwPageSize - 1); // Page size alignment
 
-    // Пытаемся выделить память по случайному адресу
+    // Try to allocate memory at random address
     g_allocatedMemory = VirtualAlloc((LPVOID)randomAddr, g_allocatedSize,
                                      MEM_RESERVE | MEM_COMMIT,
                                      PAGE_EXECUTE_READWRITE);
 
     if (!g_allocatedMemory)
     {
-        // Если не удалось выделить по случайному адресу, пробуем без указания адреса
+        // If failed to allocate at random address, try without specific address
         g_allocatedMemory = VirtualAlloc(nullptr, g_allocatedSize,
                                          MEM_RESERVE | MEM_COMMIT,
                                          PAGE_EXECUTE_READWRITE);
@@ -251,7 +252,7 @@ void HandleKey()
             {
                 auto dllPath = g_currentPath / "example.dll";
 
-                // Загружаем DLL без DONT_RESOLVE_DLL_REFERENCES
+                // Load DLL without DONT_RESOLVE_DLL_REFERENCES
                 g_loadedModule = LoadLibraryW(dllPath.wstring().c_str());
 
                 if (g_loadedModule)
@@ -311,7 +312,7 @@ void MonitorMemoryProtection()
             MEMORY_BASIC_INFORMATION mbi;
             if (VirtualQuery(g_allocatedMemory, &mbi, sizeof(mbi)))
             {
-                // Проверя��м, есть ли права на запись
+                // Check if write permissions are present
                 if (!(mbi.Protect & PAGE_EXECUTE_READWRITE))
                 {
                     LOG_WARN("Memory protection changed at 0x%p! Current protection: 0x%X",
@@ -347,7 +348,7 @@ DWORD WINAPI MainThread(HMODULE hmod, LPVOID lpParam)
     GetModuleFileNameW(hmod, dllPath, MAX_PATH);
     g_currentPath = std::filesystem::path(dllPath).parent_path();
 
-    // Подготавливаем память сразу при ��апуске
+    // Prepare memory at startup
     srand((unsigned)time(nullptr));
     if (!PrepareDllSpace())
     {
@@ -370,7 +371,7 @@ DWORD WINAPI MainThread(HMODULE hmod, LPVOID lpParam)
         std::this_thread::sleep_for(std::chrono::milliseconds(100));
     }
 
-    g_monitoringActive = false; // Останавливаем мониторинг перед выходом
+    g_monitoringActive = false; // Stop monitoring before exit
     LOG_INFO("Loader unloaded!");
     FreeLibraryAndExitThread(hmod, 0);
     return 0;
@@ -387,7 +388,7 @@ BOOL APIENTRY DllMain(HMODULE hModule, DWORD ul_reason_for_call, LPVOID lpReserv
         break;
 
     case DLL_PROCESS_DETACH:
-        g_monitoringActive = false; // Останавливаем мониторинг
+        g_monitoringActive = false; // Stop monitoring
         if (g_loadedModule)
         {
             FreeLibrary(g_loadedModule);
