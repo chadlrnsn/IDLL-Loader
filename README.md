@@ -10,6 +10,19 @@ A sophisticated DLL loader that pre-allocates memory space and maintains executi
 - Memory protection against external modifications
 - Detailed logging of all operations
 
+## How to build with Visual Studio
+
+1. Open the project in Visual Studio
+2. Select the build preset (win-x64-release or win-x64-debug)
+3. Build the project
+
+## How to build with CMake
+
+1. Clone the repository
+2. Open console in the project directory
+3. Run `cmake --preset win-x64-release`
+4. Run `cmake --build --preset win-x64-release`
+
 ## How It Works
 
 1. **Initialization**:
@@ -71,6 +84,7 @@ A sophisticated DLL loader that pre-allocates memory space and maintains executi
 ## Error Handling
 
 The loader provides comprehensive error reporting for:
+
 - Memory allocation failures
 - DLL loading issues
 - Protection changes
@@ -82,4 +96,4 @@ The loader provides comprehensive error reporting for:
 - Ensure your target DLL is compatible with the process architecture
 - Monitor console output for operation status
 - Memory protection monitoring runs until loader is unloaded
-- Clean shutdown is recommended using F9 key 
+- Clean shutdown is recommended using F9 key

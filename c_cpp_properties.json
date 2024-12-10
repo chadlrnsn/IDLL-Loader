@@ -4,10 +4,9 @@
             "name": "Win32",
             "includePath": [
                 "${workspaceFolder}/**",
-                "${workspaceFolder}/src",
-                "${workspaceFolder}/vendor",
-                "${workspaceFolder}/includes",
-                "${workspaceFolder}/src/framework"
+                "${workspaceFolder}/src/**",
+                "${workspaceFolder}/includes/**",
+                "${workspaceFolder}/src/framework/**"
             ],
             "defines": [
                 "_DEBUG",
@@ -23,4 +22,4 @@
         }
     ],
     "version": 4
-} 
+}

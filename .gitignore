@@ -97,3 +97,6 @@ Desktop.ini
 
 # Project specific
 payload.bin
+
+# Cmake
+/out
